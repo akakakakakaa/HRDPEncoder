@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+    <FrameLayout
+        android:layout_width="640px"
+        android:layout_height="480px"
+        android:id="@+id/canvasLayout"
+        android:layout_alignParentTop="true"
+        android:layout_marginTop="23px"
+        android:layout_centerHorizontal="true">
+        <ImageView
+            android:layout_width="640px"
+            android:layout_height="480px"
+            android:id="@+id/topImageView">
+        </ImageView>
+    </FrameLayout>
+
+    <HorizontalScrollView
+        android:layout_width="fill_parent"
+        android:layout_height="wrap_content"
+        android:id="@+id/horizontalScrollView"
+        android:layout_marginBottom="10px"
+        android:layout_alignParentBottom="true"
+        android:layout_alignParentLeft="true"
+        android:layout_alignParentStart="true">
+
+        <LinearLayout
+            android:orientation="horizontal"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:id="@+id/linearLayout"
+            android:gravity="bottom">
+
+        </LinearLayout>
+    </HorizontalScrollView>
+</RelativeLayout>
