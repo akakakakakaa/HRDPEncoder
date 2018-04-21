@@ -103,68 +103,67 @@ public class ReliableSock {
         return true;
     }
 
-    public byte[] recv(int size, InetAddress ip, int port) throws SocketException {
+    public Packet recv(int size) throws SocketException {
         byte[] recvBuf = new byte[size];
 
         int i = 0;
         int count = 0;
+        InetAddress address = null;
+        int port = 0;
         while(true) {
             try {
                 for (; i < size / segSize; i++) {
                     DatagramPacket pkt = new DatagramPacket(recvBuf, i * segSize, segSize);
                     mSock.receive(pkt);
-                    if(!pkt.getAddress().equals(ip))
-                        return new byte[0];
                     Log.d(TAG, "recved!! "+i);
                 }
                 DatagramPacket pkt = new DatagramPacket(recvBuf, i * segSize, size - i * segSize);
                 mSock.receive(pkt);
-                System.out.println("Address: " + pkt.getAddress());
-                System.out.println("Port: " + pkt.getPort());
-                if(!pkt.getAddress().equals(ip))
-                    return new byte[0];
+                address = pkt.getAddress();
+                port = pkt.getPort();
                 i++;
+
+                if(i > 0) {
+                    if (i == 1 + size / segSize) {
+                        byte[] response = new byte[]{0x34, 0x56, 0x78, 0x00, 0x00};
+                        DatagramPacket pkt2 = new DatagramPacket(response, response.length, address, port);
+
+                        try {
+                            mSock.send(pkt2);
+                            System.out.println("send1!!");
+                        } catch (SocketException e) {
+                            throw e;
+                        } catch (IOException e) {
+                            e.printStackTrace();
+                        }
+                        break;
+                    } else {
+                        byte[] response = new byte[]{0x34, 0x56, 0x78, 0x01, 0x00};
+                        DatagramPacket pkt2 = new DatagramPacket(response, response.length, address, port);
+                        response[4] = (byte) i;
+
+                        try {
+                            mSock.send(pkt2);
+                        } catch (SocketException e) {
+                            throw e;
+                        } catch (IOException e) {
+                            e.printStackTrace();
+                        }
+                    }
+
+                    if (count >= 10)
+                        return null;
+                }
+                else
+                    return null;
+
             } catch(SocketException e) {
                 throw e;
             } catch (IOException e) {
                 e.printStackTrace();
                 count++;
             }
-
-            if(i > 0) {
-                if (i == 1 + size / segSize) {
-                    byte[] response = new byte[]{0x34, 0x56, 0x78, 0x00, 0x00};
-                    DatagramPacket pkt = new DatagramPacket(response, response.length, ip, port);
-
-                    try {
-                        mSock.send(pkt);
-                        System.out.println("send1!!");
-                    } catch (SocketException e) {
-                        throw e;
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
-                    break;
-                } else {
-                    byte[] response = new byte[]{0x34, 0x56, 0x78, 0x01, 0x00};
-                    DatagramPacket pkt = new DatagramPacket(response, response.length, ip, port);
-                    response[4] = (byte) i;
-
-                    try {
-                        mSock.send(pkt);
-                    } catch (SocketException e) {
-                        throw e;
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
-                }
-
-                if (count >= 10)
-                    return new byte[0];
-            }
-            else
-                return new byte[0];
         }
-        return recvBuf;
+        return new Packet(recvBuf, address, port);
     }
 }

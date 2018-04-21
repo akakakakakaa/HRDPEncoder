@@ -75,7 +75,7 @@ JNIEXPORT void JNICALL Java_com_example_hrdp_encoder_Codec_encode_1init
 		char x265_params[100];
 		sprintf(x265_params, "profile=main:crf=%d:vbv-bufsize=%d:vbv-maxrate=%d:rc-lookahead=0:bframes=0", crf, 2*bit_rate/1024, bit_rate/1024);
 		av_opt_set(d_c->priv_data, "x265-params", x265_params, 0);
-	}	
+	}
     //av_opt_set(d_c->priv_data, "x265-params", "profile=main:crf=40:vbv-bufsize=32:vbv-maxrate=32:rc-lookahead=0:bframes=0:pass=2", 0);
     av_opt_set(d_c->priv_data, "preset", "ultrafast", 0);
     //av_opt_set(d_c->priv_data, "x265-params", "profile=main:crf=43:vbv-bufsize=32:vbv-maxrate=32");

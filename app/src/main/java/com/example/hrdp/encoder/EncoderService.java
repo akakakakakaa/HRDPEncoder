@@ -29,12 +29,16 @@ import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.net.InetAddress;
+import java.net.NetworkInterface;
 import java.net.SocketException;
 import java.nio.ByteBuffer;
 import java.nio.LongBuffer;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Created by Mansu on 2017-02-13.
@@ -47,30 +51,26 @@ public class EncoderService extends Service {
     private Thread receiverThread = null;
 
     //Socket
-    private String serverIp = "192.168.0.3";
-    private String clientIp = "1.100.172.180";
-    private InetAddress clientAddress;
+    private String serverIp = "192.168.0.27";
+    private Map<String, ClientInfo> clientInfos = Collections.synchronizedMap(new HashMap<String, ClientInfo>());
     private NonReliableSock nonReliableSock = null;
     private ReliableSock reliableSock = null;
     private int serverReliablePort = 3001;
     private int serverReliableTimeout = 2000;
     private int serverReliableSleepTime = 30;
-    private int serverReliableSegSize = 1024;
+    private int serverReliableSegSize = 200;
 
     private int serverNonReliablePort = 3002;
     private int serverNonReliableTimeout = 1000;
     private int serverNonReliableSleepTime = 30;
-    private int serverNonReliableSegSize = 1024;
-
-    private int clientReliablePort = 3001;
-    private int clientNonReliablePort = 3002;
+    private int serverNonReliableSegSize = 200;
 
     //video
     private int videoWidth = 640;
     private int videoHeight = 480;
     private int videoResizeWidth = 160;
     private int videoResizeHeight = 120;
-    private int bitRate = 32*1024;
+    private int bitRate = 50*1024;
     private int frameRate = 10;
     private int keyFrameRate = 20;
 
@@ -154,6 +154,14 @@ public class EncoderService extends Service {
         this.videoWidth = videoWidth;
         this.videoHeight = videoHeight;
 
+        try {
+            //serverIp = getIPAddress(true);
+            settingReliableUDP();
+            settingNonReliableUDP();
+        } catch(IOException e) {
+            e.printStackTrace();
+        }
+
         if(receiverThread == null) {
             receiverThread = new Thread(new Runnable() {
                 @Override
@@ -164,25 +172,17 @@ public class EncoderService extends Service {
                         e.printStackTrace();
                     }
 
-                    try {
-                        clientAddress = InetAddress.getByName(clientIp);
-                        settingReliableUDP();
-                        settingNonReliableUDP();
-                    } catch(IOException e) {
-                        e.printStackTrace();
-                    }
-
                     while (!Thread.currentThread().isInterrupted()) {
-                        byte[] data = new byte[0];
                         try {
                             if(reliableSock != null) {
-                                data = reliableSock.recv(24, clientAddress, clientReliablePort);
+                                Packet packet = reliableSock.recv(36);
+                                byte[] data = packet.getData();
                                 if (data.length != 0) {
                                     Log.d(TAG, "data[0]: " + data[0] + " data[1]: " + data[1] + " data[2]: " + data[2] + " data[3]: " + data[3]);
                                     if (data[0] == 0x12 && data[1] == 0x34 && data[2] == 0x56) {
                                         switch (data[3]) {
                                             case 0x00:
-                                                recvConfig(data);
+                                                recvConfig(packet);
                                                 break;
                                             case 0x01:
                                                 Log.d(TAG, "isPause");
@@ -198,7 +198,7 @@ public class EncoderService extends Service {
                                     } else if (data[0] == 0x34 && data[1] == 0x56 && data[2] == 0x78 && data[3] == 0x12) {
                                         switch (data[4]) {
                                             case 0x01:
-                                                sendTimestampList();
+                                                sendTimestampList(packet);
                                                 break;
                                             case 0x02:
                                                 sendWantedImg();
@@ -219,6 +219,32 @@ public class EncoderService extends Service {
             receiverThread.start();
         }
     }
+    public static String getIPAddress(boolean useIPv4) {
+        try {
+            List<NetworkInterface> interfaces = Collections.list(NetworkInterface.getNetworkInterfaces());
+            for (NetworkInterface intf : interfaces) {
+                List<InetAddress> addrs = Collections.list(intf.getInetAddresses());
+                for (InetAddress addr : addrs) {
+                    if (!addr.isLoopbackAddress()) {
+                        String sAddr = addr.getHostAddress();
+                        //boolean isIPv4 = InetAddressUtils.isIPv4Address(sAddr);
+                        boolean isIPv4 = sAddr.indexOf(':')<0;
+
+                        if (useIPv4) {
+                            if (isIPv4)
+                                return sAddr;
+                        } else {
+                            if (!isIPv4) {
+                                int delim = sAddr.indexOf('%'); // drop ip6 zone suffix
+                                return delim<0 ? sAddr.toUpperCase() : sAddr.substring(0, delim).toUpperCase();
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (Exception ex) { } // for now eat exceptions
+        return "";
+    }
 
     private void release() {
         if(receiverThread != null)
@@ -229,20 +255,34 @@ public class EncoderService extends Service {
         isPause = true;
     }
 
-    private void recvConfig(byte[] config) {
+    private void recvConfig(Packet packet) {
         Log.d(TAG, "recvConfig");
         isPause = true;
 
+        byte[] config = packet.getData();
         processThread.clear();
         videoResizeWidth = toInt(config, 4);
         videoResizeHeight = toInt(config, 8);
         bitRate = toInt(config, 12);
         frameRate = toInt(config, 16);
         keyFrameRate = toInt(config, 20);
+        int port = toInt(config, 24);
+        serverReliableSegSize = toInt(config, 28);
+        serverNonReliableSegSize = toInt(config, 32);
+        try {
+            //serverIp = getIPAddress(true);
+            settingReliableUDP();
+            settingNonReliableUDP();
+        } catch(IOException e) {
+            e.printStackTrace();
+        }
+
         fileInitialize();
         codecInitialize();
         processThread.run();
 
+        System.out.println("Test: " + packet.getAddress() + " " + packet.getPort());
+        clientInfos.put(packet.getAddress().toString(), new ClientInfo(packet.getAddress(), packet.getPort(), port));
         isPause = false;
     }
 
@@ -315,17 +355,17 @@ public class EncoderService extends Service {
             file.mkdir();
     }
 
-    private boolean sendTimestampList() {
+    private boolean sendTimestampList(Packet packet) {
         Log.d(TAG, "sendTimestampList");
 
         byte[] timestampsInfo = toBytes(timestamps.size());
-        reliableSock.send(timestampsInfo, clientAddress, clientReliablePort);
+        reliableSock.send(timestampsInfo, packet.getAddress(), packet.getPort());
 
         byte[] timestampList = new byte[8*timestamps.size()];
         for(int i=0; i<timestamps.size(); i++)
             System.arraycopy(ByteBuffer.allocate(Long.SIZE / Byte.SIZE).putLong(timestamps.get(i)).array(), 0, timestampList, i * 8, 8);
 
-        reliableSock.send(timestampList, clientAddress, clientReliablePort);
+        reliableSock.send(timestampList, packet.getAddress(), packet.getPort());
 
         return true;
     }
@@ -334,9 +374,9 @@ public class EncoderService extends Service {
         Log.d(TAG, "sendWantedImg");
 
         //System.out.pri ntln("sub Image request");
-        byte[] rect = new byte[0];
         try {
-            rect = reliableSock.recv(24, clientAddress, clientReliablePort);
+            Packet packet = reliableSock.recv(24);
+            byte[] rect = packet.getData();
             ByteBuffer buf = ByteBuffer.wrap(rect);
             LongBuffer longBuf = buf.asLongBuffer();
             long[] l = new long[longBuf.capacity()];
@@ -386,9 +426,9 @@ public class EncoderService extends Service {
                     e.printStackTrace();
                 }
                 //System.out.println("sub Image size is " + baos.toByteArray().length);
-                reliableSock.send(toBytes(base64Data.length), clientAddress, clientReliablePort);
+                reliableSock.send(toBytes(base64Data.length), packet.getAddress(), packet.getPort());
                 Log.d(TAG, "base64data size is "+base64Data.length);
-                reliableSock.send(base64Data, clientAddress, clientReliablePort);
+                reliableSock.send(base64Data, packet.getAddress(), packet.getPort());
 
                 return true;
                 //System.out.println("write over");
@@ -612,8 +652,10 @@ public class EncoderService extends Service {
             protected synchronized void process(byte[] data) {
                 if(isRun) {
                     long start = System.currentTimeMillis();
-
-                    nonReliableSock.send(data, clientAddress, clientNonReliablePort);
+                    for( Map.Entry<String, ClientInfo> elem : clientInfos.entrySet() ) {
+                        ClientInfo clientInfo = elem.getValue();
+                        nonReliableSock.send(data, clientInfo.getAddress(), clientInfo.getNonReliablePort());
+                    }
 
                     long end = System.currentTimeMillis();
                     System.out.println("SendThread : " + (end - start) + "ms");

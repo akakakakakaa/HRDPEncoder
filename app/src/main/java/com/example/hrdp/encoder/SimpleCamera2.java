@@ -94,7 +94,7 @@ public class SimpleCamera2 {
         try {
             String pickedCamera = getCamera(manager);
             manager.openCamera(pickedCamera, cameraStateCallback, null);
-            imageReader = ImageReader.newInstance(640, 480, ImageFormat.YUV_420_888, 10 /* images buffered */);
+            imageReader = ImageReader.newInstance(640, 480, ImageFormat.YUV_420_888, 20 /* images buffered */);
             imageReader.setOnImageAvailableListener(onImageAvailableListener, null);
             Log.i(TAG, "imageReader created");
         } catch (CameraAccessException e){
