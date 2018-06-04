@@ -1,4 +1,4 @@
-package com.example.hrdp.encoder;
+package com.example.hrdp.encoder.Network;
 
 import java.io.IOException;
 import java.net.DatagramPacket;

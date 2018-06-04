@@ -1,5 +1,6 @@
 package com.example.hrdp.encoder;
 
+import android.support.annotation.NonNull;
 import android.util.Log;
 
 import java.util.ArrayList;
@@ -10,10 +11,21 @@ import java.util.List;
  * Created by Mansu on 2017-03-08.
  */
 
-public class AsyncThread<T> extends Thread {
-    //raw image frames
+public class AsyncThread<T,T2> extends Thread {
     protected List<T> dataList = Collections.synchronizedList(new ArrayList());
+    private List<AsyncThread> nextThreads;
+    private ProcessInterface<T,T2> processInterface;
     private boolean isClear = false;
+
+
+    public AsyncThread(@NonNull ProcessInterface<T,T2> processInterface) {
+        this.processInterface = processInterface;
+    }
+
+    public void setNextThreads(@NonNull List<AsyncThread> nextThreads) {
+        this.nextThreads = nextThreads;
+    }
+
     @Override
     public void run() {
         while(!Thread.currentThread().isInterrupted()) {
@@ -34,13 +46,16 @@ public class AsyncThread<T> extends Thread {
                 }
             }
 
-            if(data != null)
-                innerProcess(data);
+            if(data != null) {
+                T2 processedData = processInterface.process(data);
+                for(AsyncThread asyncThread : nextThreads)
+                    asyncThread.putData(processedData);
+            }
         }
         Log.d("AsyncThread", "AsyncThread end");
     }
 
-    public void putData(T data) {
+    public void putData(@NonNull T data) {
         synchronized (dataList) {
             if(!isClear) {
                 dataList.add(data);
@@ -55,6 +70,7 @@ public class AsyncThread<T> extends Thread {
         synchronized (dataList) {
             dataList.clear();
             isClear = true;
+            processInterface.onClear();
         }
     }
 
@@ -66,10 +82,8 @@ public class AsyncThread<T> extends Thread {
         }
     }
 
-    private synchronized void innerProcess(T data) {
-            if(!isClear)
-                process(data);
+    interface ProcessInterface<T,T2> {
+        T2 process(T data);
+        void onClear();
     }
-
-    protected void process(T data) {}
 }

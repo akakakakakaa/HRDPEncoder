@@ -1,4 +1,4 @@
-package com.example.hrdp.encoder;
+package com.example.hrdp.encoder.Network;
 
 import java.net.InetAddress;
 

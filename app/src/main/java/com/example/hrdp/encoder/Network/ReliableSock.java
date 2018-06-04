@@ -1,4 +1,4 @@
-package com.example.hrdp.encoder;
+package com.example.hrdp.encoder.Network;
 
 import android.util.Log;
 
@@ -8,7 +8,6 @@ import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.SocketException;
-import java.net.SocketTimeoutException;
 
 /**
  * Created by yj on 16. 9. 13.
